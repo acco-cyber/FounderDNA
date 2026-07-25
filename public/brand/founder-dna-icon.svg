@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" role="img" aria-labelledby="title">
+  <title id="title">Founder DNA</title>
+  <defs>
+    <linearGradient id="teal" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#087E84"/>
+      <stop offset=".55" stop-color="#00C9A7"/>
+      <stop offset="1" stop-color="#19DCC0"/>
+    </linearGradient>
+    <linearGradient id="navy" x1=".1" y1="1" x2=".85" y2="0">
+      <stop offset="0" stop-color="#101642"/>
+      <stop offset=".58" stop-color="#1A1F3C"/>
+      <stop offset="1" stop-color="#087E84"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M34 145C25 124 30 109 54 94c22-14 31-29 25-45-4-11-14-18-27-20" stroke="url(#navy)" stroke-width="10"/>
+    <path d="M77 145c8-20 2-36-23-51C31 80 25 65 33 48c5-11 14-18 28-21" stroke="url(#teal)" stroke-width="10"/>
+    <path d="M51 28c17-1 30 5 37 17" stroke="url(#teal)" stroke-width="8"/>
+    <path d="M87 45l17-5-6 17" stroke="#00C9A7" stroke-width="8"/>
+    <g stroke-width="4">
+      <path d="M34 119h43" stroke="#1A1F3C"/>
+      <path d="M31 101h49" stroke="#00AFA1"/>
+      <path d="M36 82h43" stroke="#1A1F3C"/>
+      <path d="M37 63h39" stroke="#00AFA1"/>
+      <path d="M43 45h33" stroke="#1A1F3C"/>
+    </g>
+    <g stroke="#FF6B6B" stroke-width="3.5">
+      <path d="M76 3v9M76 28v9M59 20h9M84 20h9"/>
+      <path d="M66 10l5 5M81 25l5 5M86 10l-5 5M71 25l-5 5"/>
+    </g>
+    <path d="M76 13l2.6 4.4L83 20l-4.4 2.6L76 27l-2.6-4.4L69 20l4.4-2.6z" fill="#FF6B6B" stroke="none"/>
+  </g>
+</svg>

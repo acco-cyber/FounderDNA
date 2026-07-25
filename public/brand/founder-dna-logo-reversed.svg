@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 170" role="img" aria-labelledby="title desc">
+  <title id="title">Founder DNA</title>
+  <desc id="desc">Your potential. Engineered into opportunity.</desc>
+  <defs>
+    <linearGradient id="teal" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#F7F5F0"/><stop offset=".45" stop-color="#00C9A7"/><stop offset="1" stop-color="#19DCC0"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(10 2) scale(.92)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M34 145C25 124 30 109 54 94c22-14 31-29 25-45-4-11-14-18-27-20" stroke="#F7F5F0" stroke-width="10"/>
+    <path d="M77 145c8-20 2-36-23-51C31 80 25 65 33 48c5-11 14-18 28-21" stroke="url(#teal)" stroke-width="10"/>
+    <path d="M51 28c17-1 30 5 37 17" stroke="#00C9A7" stroke-width="8"/>
+    <path d="M87 45l17-5-6 17" stroke="#00C9A7" stroke-width="8"/>
+    <g stroke-width="4">
+      <path d="M34 119h43" stroke="#F7F5F0"/><path d="M31 101h49" stroke="#00C9A7"/>
+      <path d="M36 82h43" stroke="#F7F5F0"/><path d="M37 63h39" stroke="#00C9A7"/>
+      <path d="M43 45h33" stroke="#F7F5F0"/>
+    </g>
+    <g stroke="#FF6B6B" stroke-width="3.5">
+      <path d="M76 3v9M76 28v9M59 20h9M84 20h9"/>
+      <path d="M66 10l5 5M81 25l5 5M86 10l-5 5M71 25l-5 5"/>
+    </g>
+    <path d="M76 13l2.6 4.4L83 20l-4.4 2.6L76 27l-2.6-4.4L69 20l4.4-2.6z" fill="#FF6B6B" stroke="none"/>
+  </g>
+  <text x="130" y="83" fill="#F7F5F0" font-family="Arial, Helvetica, sans-serif" font-size="56" font-weight="300" letter-spacing="-2">Founder <tspan font-weight="700">DNA</tspan></text>
+  <path d="M132 100h336" stroke="#00C9A7" stroke-width="2"/>
+  <text x="132" y="130" fill="#D6D6DE" font-family="Arial, Helvetica, sans-serif" font-size="17" letter-spacing=".2">Your potential. Engineered into opportunity.</text>
+</svg>
