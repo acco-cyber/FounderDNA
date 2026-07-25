@@ -1,0 +1,8 @@
+project_id = "hvbdkuytaoghdkafsrrt"
+
+[auth]
+site_url = "http://localhost:4173"
+additional_redirect_urls = [
+  "http://localhost:4173/**",
+  "https://founderdna-top5-ready-050.vercel.app/**"
+]
