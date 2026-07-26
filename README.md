@@ -310,4 +310,4 @@ described in [SECURITY.md](./SECURITY.md).
 <p align="center">
   <strong>Founder DNA</strong><br />
   Your potential. Engineered into opportunity.
-</p>
+</p>  
