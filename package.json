@@ -1,0 +1,41 @@
+{
+  "name": "founder-dna",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "server": "node server/index.mjs",
+    "dev:full": "concurrently \"npm:server\" \"npm:dev\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@google/genai": "^2.13.0",
+    "@supabase/server": "^1.4.1",
+    "@supabase/supabase-js": "^2.110.8",
+    "express": "^5.2.1",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "stripe": "^22.3.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
+    "@playwright/test": "^1.54.1",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.2.1",
+    "sharp": "^0.35.3",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5",
+    "vitest": "^4.1.10"
+  }
+}
