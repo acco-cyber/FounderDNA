@@ -123,7 +123,119 @@ function readStoredMatchProfile(fallback: MatchProfile): MatchProfile {
   }
 }
 
-function candidateFromProfile(profile: MatchProfile): Candidate {
+const SKILL_CATEGORY_KEYWORDS: Record<string, string[]> = {
+  Product: ["product", "design", "ux", "roadmap", "delivery", "prototype"],
+  Technical: [
+    "technical",
+    "engineer",
+    "architecture",
+    "software",
+    "data",
+    "code",
+    "dev",
+    "ml",
+    "ai",
+  ],
+  Sales: ["sales", "partnership", "enterprise", "revenue", "gtm", "pricing"],
+  Operations: [
+    "operations",
+    "ops",
+    "finance",
+    "hiring",
+    "process",
+    "compliance",
+  ],
+  Market: [
+    "market",
+    "customer",
+    "growth",
+    "community",
+    "brand",
+    "discovery",
+    "research",
+  ],
+};
+
+function skillsOverlap(a: string, b: string): boolean {
+  const left = a.trim().toLowerCase();
+  const right = b.trim().toLowerCase();
+  if (
+    left.length > 2 &&
+    right.length > 2 &&
+    (left.includes(right) || right.includes(left))
+  ) {
+    return true;
+  }
+  const tokens = (value: string) =>
+    value.split(/[^a-z0-9+]+/).filter((token) => token.length >= 4);
+  const rightTokens = new Set(tokens(right));
+  return tokens(left).some((token) => rightTokens.has(token));
+}
+
+function coverage(needs: string[], offers: string[]): number | null {
+  if (!needs.length) return null;
+  const covered = needs.filter((need) =>
+    offers.some((offer) => skillsOverlap(need, offer)),
+  );
+  return covered.length / needs.length;
+}
+
+function trackFit(a: FounderTrack, b: FounderTrack): number {
+  if (a === b) return 0.35;
+  if (a === "Hybrid" || b === "Hybrid") return 0.7;
+  return 1;
+}
+
+function computeMatchScore(
+  candidate: MatchProfile,
+  viewer: MatchProfile,
+): number {
+  const needsCoverage = coverage(viewer.seekingSkills, candidate.skills);
+  const reverseCoverage = coverage(candidate.seekingSkills, viewer.skills);
+  const track = trackFit(viewer.track, candidate.track);
+  const hours =
+    1 - Math.min(Math.abs(viewer.weeklyHours - candidate.weeklyHours), 30) / 30;
+  const mode =
+    viewer.workMode === candidate.workMode ||
+    viewer.workMode === "Flexible" ||
+    candidate.workMode === "Flexible"
+      ? 1
+      : 0.6;
+
+  const parts: Array<[number | null, number]> = [
+    [needsCoverage, 0.45],
+    [reverseCoverage, 0.25],
+    [track, 0.15],
+    [hours, 0.1],
+    [mode, 0.05],
+  ];
+  const available = parts.filter(
+    (part): part is [number, number] => part[0] !== null,
+  );
+  const weightSum = available.reduce((sum, [, weight]) => sum + weight, 0);
+  const weighted = available.reduce(
+    (sum, [value, weight]) => sum + value * weight,
+    0,
+  );
+  return Math.round((weighted / weightSum) * 100);
+}
+
+function skillCategoryScores(skills: string[]): Record<string, number> {
+  const normalized = skills.map((skill) => skill.trim().toLowerCase());
+  return Object.fromEntries(
+    Object.entries(SKILL_CATEGORY_KEYWORDS).map(([category, keywords]) => {
+      const hits = keywords.filter((keyword) =>
+        normalized.some((skill) => skill.includes(keyword)),
+      ).length;
+      return [category, Math.min(45 + hits * 25, 95)];
+    }),
+  );
+}
+
+function candidateFromProfile(
+  profile: MatchProfile,
+  viewer: MatchProfile,
+): Candidate {
   const verified = [
     profile.identityVerified ? "Identity" : "",
     profile.phoneVerified ? "Phone" : "",
@@ -135,12 +247,6 @@ function candidateFromProfile(profile: MatchProfile): Candidate {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
-  const skillStrength = (label: string) =>
-    profile.skills.some((skill) =>
-      skill.toLowerCase().includes(label.toLowerCase()),
-    )
-      ? 88
-      : 58;
 
   return {
     id: profile.userId ?? crypto.randomUUID(),
@@ -154,20 +260,14 @@ function candidateFromProfile(profile: MatchProfile): Candidate {
     hours: profile.weeklyHours,
     stage: profile.stage,
     equity: profile.equityExpectation,
-    match: profile.track === "Technical" ? 91 : profile.track === "Hybrid" ? 87 : 84,
+    match: computeMatchScore(profile, viewer),
     verified,
     gives: profile.skills,
     needs: profile.seekingSkills,
     vision: profile.vision,
     evidence: [],
     availability: `${profile.weeklyHours} hours weekly · ${profile.workMode}`,
-    skills: {
-      Product: skillStrength("Product"),
-      Technical: skillStrength("Engineering"),
-      Sales: skillStrength("Sales"),
-      Operations: skillStrength("Operations"),
-      Market: skillStrength("Customer"),
-    },
+    skills: skillCategoryScores(profile.skills),
     live: true,
   };
 }
@@ -662,7 +762,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
   );
   const [matchProfile, setMatchProfile] =
     useState<MatchProfile>(initialMatchProfile);
-  const [networkCandidates, setNetworkCandidates] = useState<Candidate[]>([]);
+  const [networkProfiles, setNetworkProfiles] = useState<MatchProfile[]>([]);
   const [roleFilter, setRoleFilter] = useState("All");
   const [hoursFilter, setHoursFilter] = useState("Any");
   const [stageFilter, setStageFilter] = useState("Any");
@@ -676,8 +776,15 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
   const [draft, setDraft] = useState("");
   const [selectedDay, setSelectedDay] = useState("Tue 29");
   const [selectedTime, setSelectedTime] = useState("");
+  const networkCandidates = useMemo(
+    () =>
+      networkProfiles.map((profile) =>
+        candidateFromProfile(profile, matchProfile),
+      ),
+    [networkProfiles, matchProfile],
+  );
   const allCandidates = useMemo(
-    () => [...networkCandidates, ...candidates],
+    () => (networkCandidates.length ? networkCandidates : candidates),
     [networkCandidates],
   );
   const selectedCandidate =
@@ -699,7 +806,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
             JSON.stringify(own.profile),
           );
         }
-        setNetworkCandidates(discovery.profiles.map(candidateFromProfile));
+        setNetworkProfiles(discovery.profiles);
       })
       .catch(() => {
         if (!active) return;
