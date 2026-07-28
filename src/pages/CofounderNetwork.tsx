@@ -71,6 +71,7 @@ type Candidate = {
   evidence: string[];
   availability: string;
   skills: Record<string, number>;
+  avatarUrl?: string | null;
   live?: boolean;
 };
 
@@ -273,6 +274,7 @@ function candidateFromProfile(
     stage: profile.stage,
     equity: profile.equityExpectation,
     match: computeMatchScore(profile, viewer),
+    avatarUrl: profile.avatarUrl ?? null,
     verified,
     gives: profile.skills,
     needs: profile.seekingSkills,
@@ -440,6 +442,29 @@ function VerificationBadges({ items }: { items: string[] }) {
       ))}
     </div>
   );
+}
+
+function CandidateAvatar({
+  candidate,
+  kind = "candidate",
+}: {
+  candidate: Candidate;
+  kind?: "candidate" | "conversation";
+}) {
+  const [broken, setBroken] = useState(false);
+  const className = `${kind}-avatar is-${candidate.track.toLowerCase()}`;
+  if (candidate.avatarUrl && !broken) {
+    return (
+      <img
+        className={className}
+        src={candidate.avatarUrl}
+        alt=""
+        style={{ objectFit: "cover" }}
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return <span className={className}>{candidate.initials}</span>;
 }
 
 function MatchScore({ value, compact = false }: { value: number; compact?: boolean }) {
@@ -718,7 +743,7 @@ function CandidateCard({
   return (
     <article className={`candidate-card ${compact ? "is-compact" : ""}`}>
       <div className="candidate-card-head">
-        <span className={`candidate-avatar is-${candidate.track.toLowerCase()}`}>{candidate.initials}</span>
+        <CandidateAvatar candidate={candidate} />
         <div>
           <span className={`founder-track-tag is-${candidate.track.toLowerCase()}`}>{candidate.track}</span>
           <h3>
@@ -1139,7 +1164,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
           <button className="back-to-discovery" type="button" onClick={() => go("discover")}><ArrowLeft size={15} /> Back to discovery</button>
           <div className="profile-identity-card">
             <div className="profile-identity-main">
-              <span className={`candidate-avatar is-${selectedCandidate.track.toLowerCase()}`}>{selectedCandidate.initials}</span>
+              <CandidateAvatar candidate={selectedCandidate} />
               <div>
                 <span className={`founder-track-tag is-${selectedCandidate.track.toLowerCase()}`}>{selectedCandidate.track} founder</span>
                 <h2>
@@ -1241,7 +1266,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
                       navigate(`/app/matches?view=messages&person=${conversation.id}`, { replace: true });
                     }}
                   >
-                    <span className={`conversation-avatar is-${candidate.track.toLowerCase()}`}>{candidate.initials}</span>
+                    <CandidateAvatar candidate={candidate} kind="conversation" />
                     <div><strong>{candidate.name}<BadgeCheck size={11} /></strong><small>{conversation.preview}</small></div>
                     <em>{conversation.time}</em>
                     {conversation.unread > 0 && <i>{conversation.unread}</i>}
@@ -1254,7 +1279,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
 
           <div className="chat-pane">
             <header className="chat-profile-pin">
-              <span className={`conversation-avatar is-${chatCandidate.track.toLowerCase()}`}>{chatCandidate.initials}</span>
+              <CandidateAvatar candidate={chatCandidate} kind="conversation" />
               <div><strong>{chatCandidate.name}<BadgeCheck size={12} /></strong><small>{chatCandidate.match}% match · {chatCandidate.track} · {chatCandidate.location}</small></div>
               <button type="button" onClick={() => go("profile", chatCandidate.id)}>View profile</button>
             </header>
@@ -1268,7 +1293,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
               <div className="chat-day"><span>Today</span></div>
               {messages.map((message, index) => (
                 <div className={`chat-message is-${message.from}`} key={`${message.time}-${index}`}>
-                  {message.from === "them" && <span className={`conversation-avatar is-${chatCandidate.track.toLowerCase()}`}>{chatCandidate.initials}</span>}
+                  {message.from === "them" && <CandidateAvatar candidate={chatCandidate} kind="conversation" />}
                   <div><p>{message.text}</p><small>{message.time}</small></div>
                 </div>
               ))}
