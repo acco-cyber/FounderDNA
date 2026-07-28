@@ -200,6 +200,9 @@ export const saveFounderProfile = (profile: FounderProfile) =>
 export const getMatchProfile = () =>
   request<{ profile: MatchProfile | null }>("/api/matching/profile");
 
+export const discoverPublicMatchProfiles = () =>
+  request<{ profiles: MatchProfile[] }>("/api/matching/discover/public");
+
 export const saveMatchProfile = (profile: MatchProfile) =>
   request<{ profile: MatchProfile }>("/api/matching/profile", {
     method: "PUT",
