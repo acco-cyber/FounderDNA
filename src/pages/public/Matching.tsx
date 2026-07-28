@@ -68,6 +68,9 @@ export function Matching() {
         <Link className="button button-primary button-large" to="/app/matches">
           Open the matching workspace <ArrowRight size={17} />
         </Link>
+        <Link className="button button-secondary button-large" to="/network">
+          Browse the live network
+        </Link>
       </section>
 
       <section className="matching-demo-section">
