@@ -136,6 +136,7 @@ export interface MatchProfile {
   skills: string[];
   seekingSkills: string[];
   vision: string;
+  avatarUrl?: string | null;
   published: boolean;
   identityVerified?: boolean;
   phoneVerified?: boolean;
