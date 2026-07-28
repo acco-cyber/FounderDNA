@@ -39,6 +39,7 @@ import {
 import { useAuth } from "../context/AuthProvider";
 import {
   discoverMatchProfiles,
+  discoverPublicMatchProfiles,
   getMatchProfile,
   requestMatchIntro,
   saveMatchProfile,
@@ -467,7 +468,30 @@ function CandidateAvatar({
   return <span className={className}>{candidate.initials}</span>;
 }
 
-function MatchScore({ value, compact = false }: { value: number; compact?: boolean }) {
+function MatchScore({
+  value,
+  compact = false,
+  locked = false,
+  onUnlock,
+}: {
+  value: number;
+  compact?: boolean;
+  locked?: boolean;
+  onUnlock?: () => void;
+}) {
+  if (locked) {
+    return (
+      <button
+        type="button"
+        className={`cofounder-match-score is-strong ${compact ? "is-compact" : ""}`}
+        onClick={onUnlock}
+        title="Sign in to see your personal match score"
+      >
+        <strong>?</strong>
+        <span>Match</span>
+      </button>
+    );
+  }
   return (
     <div className={`cofounder-match-score ${scoreTone(value)} ${compact ? "is-compact" : ""}`}>
       <strong>{value}%</strong>
@@ -734,11 +758,13 @@ function CandidateCard({
   onProfile,
   onIntro,
   compact = false,
+  guestLogin,
 }: {
   candidate: Candidate;
   onProfile: () => void;
   onIntro: () => void;
   compact?: boolean;
+  guestLogin?: () => void;
 }) {
   return (
     <article className={`candidate-card ${compact ? "is-compact" : ""}`}>
@@ -754,7 +780,7 @@ function CandidateCard({
           </h3>
           <p><MapPin size={12} /> {candidate.location} · {candidate.workMode}</p>
         </div>
-        <MatchScore value={candidate.match} compact={compact} />
+        <MatchScore value={candidate.match} compact={compact} locked={Boolean(guestLogin)} onUnlock={guestLogin} />
       </div>
       <VerificationBadges items={candidate.verified} />
       <h4>{candidate.headline}</h4>
@@ -779,12 +805,17 @@ function CandidateCard({
 
 export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
   const auth = useAuth();
+  const isGuest = !auth.user;
   const location = useLocation();
   const navigate = useNavigate();
+  const goLogin = () => navigate("/login");
   const params = new URLSearchParams(location.search);
   const requestedView = params.get("view");
-  const view: NetworkView =
-    requestedView === "profile" || requestedView === "messages" ? requestedView : "discover";
+  const view: NetworkView = isGuest
+    ? "discover"
+    : requestedView === "profile" || requestedView === "messages"
+      ? requestedView
+      : "discover";
   const requestedCandidate = params.get("person") ?? "amara";
   const initialMatchProfile = useMemo(
     () =>
@@ -834,13 +865,19 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
     allCandidates[0];
 
   useEffect(() => {
-    if (!auth.user || auth.user.isLocalReview) return;
+    if (auth.user?.isLocalReview) return;
     let active = true;
 
-    void Promise.all([getMatchProfile(), discoverMatchProfiles()])
+    const load = auth.user
+      ? Promise.all([getMatchProfile(), discoverMatchProfiles()])
+      : discoverPublicMatchProfiles().then(
+          (discovery) => [null, discovery] as const,
+        );
+
+    void load
       .then(([own, discovery]) => {
         if (!active) return;
-        if (own.profile?.track) {
+        if (own?.profile?.track) {
           setMatchProfile(own.profile);
           setSetupComplete(Boolean(own.profile.vision || own.profile.skills.length));
           localStorage.setItem(
@@ -853,7 +890,9 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
       .catch(() => {
         if (!active) return;
         setNotice(
-          "Cloud matching is waiting for the Supabase schema; this review stays local.",
+          auth.user
+            ? "Cloud matching is waiting for the Supabase schema; this review stays local."
+            : "Live profiles are unavailable right now — showing sample founders.",
         );
       });
 
@@ -896,9 +935,13 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
   const messages = messageMap[activeConversation] ?? [];
 
   const go = (nextView: NetworkView, candidateId?: string) => {
+    if (isGuest && nextView !== "discover") {
+      goLogin();
+      return;
+    }
     const query = new URLSearchParams({ view: nextView });
     if (candidateId) query.set("person", candidateId);
-    navigate(`/app/matches?${query.toString()}`);
+    navigate(`${isGuest ? "/network" : "/app/matches"}?${query.toString()}`);
   };
 
   const nextCard = () => {
@@ -906,6 +949,10 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
   };
 
   const requestIntro = async (candidate: Candidate) => {
+    if (isGuest) {
+      goLogin();
+      return;
+    }
     if (candidate.live) {
       try {
         await requestMatchIntro(
@@ -1110,13 +1157,14 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
                     candidate={activeCard}
                     onProfile={() => go("profile", activeCard.id)}
                     onIntro={() => requestIntro(activeCard)}
+                    guestLogin={isGuest ? goLogin : undefined}
                   />
                   <div className="swipe-actions" aria-label="Profile actions">
                     <button type="button" className="is-pass" onClick={nextCard} aria-label="Pass on profile"><X size={20} /><span>Pass</span></button>
                     <button
                       type="button"
                       className={`is-save ${saved.includes(activeCard.id) ? "is-active" : ""}`}
-                      onClick={() => setSaved((items) => items.includes(activeCard.id) ? items.filter((id) => id !== activeCard.id) : [...items, activeCard.id])}
+                      onClick={() => { if (isGuest) { goLogin(); return; } setSaved((items) => items.includes(activeCard.id) ? items.filter((id) => id !== activeCard.id) : [...items, activeCard.id]); }}
                       aria-label="Save profile"
                     >
                       <Star size={20} /><span>{saved.includes(activeCard.id) ? "Saved" : "Save"}</span>
@@ -1151,6 +1199,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
                     compact
                     onProfile={() => go("profile", candidate.id)}
                     onIntro={() => requestIntro(candidate)}
+                    guestLogin={isGuest ? goLogin : undefined}
                   />
                 ))}
               </div>
@@ -1178,7 +1227,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
               </div>
             </div>
             <div className="profile-identity-score">
-              <MatchScore value={selectedCandidate.match} />
+              <MatchScore value={selectedCandidate.match} locked={isGuest} onUnlock={goLogin} />
               <button className="button button-primary" type="button" onClick={() => requestIntro(selectedCandidate)}><Handshake size={15} /> Request intro</button>
             </div>
             <VerificationBadges items={selectedCandidate.verified} />
