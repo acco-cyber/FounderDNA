@@ -198,6 +198,7 @@ const toMatchProfile = (row) => ({
   skills: row.skills ?? [],
   seekingSkills: row.seeking_skills ?? [],
   vision: row.vision,
+  avatarUrl: row.avatar_url ?? null,
   published: row.published,
   identityVerified: row.identity_verified,
   phoneVerified: row.phone_verified,
