@@ -180,7 +180,19 @@ function coverage(needs: string[], offers: string[]): number | null {
   return covered.length / needs.length;
 }
 
-function trackFit(a: FounderTrack, b: FounderTrack): number {
+function normalizeTrack(
+  value: FounderTrack | null | undefined,
+): FounderTrack {
+  return value === "Technical" || value === "Business" || value === "Hybrid"
+    ? value
+    : "Hybrid";
+}
+
+function trackFit(
+  a: FounderTrack | null | undefined,
+  b: FounderTrack | null | undefined,
+): number {
+  if (!a || !b) return 0.7;
   if (a === b) return 0.35;
   if (a === "Hybrid" || b === "Hybrid") return 0.7;
   return 1;
@@ -252,7 +264,7 @@ function candidateFromProfile(
     id: profile.userId ?? crypto.randomUUID(),
     name,
     initials: initials || "FD",
-    track: profile.track,
+    track: normalizeTrack(profile.track),
     headline: profile.headline,
     bio: profile.bio,
     location: profile.location || "Location shared after consent",
@@ -446,12 +458,17 @@ function SkillComparison({
   candidate: Candidate;
   profile: FounderProfile;
 }) {
+  const assessmentScores = profile.assessmentComplete
+    ? profile.scores
+    : undefined;
   const founderScores: Record<string, number> = {
-    Product: profile.assessmentComplete ? profile.scores.executionVelocity : 72,
-    Technical: profile.industry.toLowerCase().includes("tech") ? 82 : 45,
-    Sales: profile.assessmentComplete ? profile.scores.networkLeverage : 68,
-    Operations: profile.assessmentComplete ? profile.scores.resourcefulness : 78,
-    Market: profile.assessmentComplete ? profile.scores.localMarketFluency : 75,
+    Product: assessmentScores?.executionVelocity ?? 72,
+    Technical: (profile.industry ?? "").toLowerCase().includes("tech")
+      ? 82
+      : 45,
+    Sales: assessmentScores?.networkLeverage ?? 68,
+    Operations: assessmentScores?.resourcefulness ?? 78,
+    Market: assessmentScores?.localMarketFluency ?? 75,
   };
 
   return (
