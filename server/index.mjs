@@ -362,6 +362,14 @@ app.put("/api/matching/profile", requireAuth, async (request, response, next) =>
   }
 });
 
+app.get("/api/matching/discover/public", async (_request, response, next) => {
+  try {
+    response.json({ profiles: await store.listPublicMatchProfiles() });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get(
   "/api/matching/discover",
   requireAuth,
