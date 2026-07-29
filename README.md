@@ -13,7 +13,6 @@
 <p align="center">
   Founder DNA helps people turn lived experience into testable ventures, find
   the operator they are missing, and build a proof trail before making claims.
-  hello
 </p>
 
 <p align="center">
