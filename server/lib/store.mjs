@@ -6,6 +6,7 @@ import {
   createAdminClient,
   createContextClient,
 } from "@supabase/server/core";
+import { createClient } from "@supabase/supabase-js";
 import { config, persistenceProvider } from "./config.mjs";
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -162,6 +163,10 @@ class LocalFileStore {
     );
   }
 
+  async listPublicMatchProfiles() {
+    return this.listMatchProfiles(null);
+  }
+
   async requestConnection(recipientId, note, ownerId) {
     const connection = {
       id: randomUUID(),
@@ -198,6 +203,7 @@ const toMatchProfile = (row) => ({
   skills: row.skills ?? [],
   seekingSkills: row.seeking_skills ?? [],
   vision: row.vision,
+  avatarUrl: row.avatar_url ?? null,
   published: row.published,
   identityVerified: row.identity_verified,
   phoneVerified: row.phone_verified,
@@ -208,6 +214,18 @@ const toMatchProfile = (row) => ({
 class SupabaseStore {
   provider = "supabase";
   #admin = null;
+  #anonClient = null;
+
+  #anon() {
+    if (!this.#anonClient) {
+      this.#anonClient = createClient(
+        config.supabaseUrl,
+        config.supabasePublishableKey,
+        { auth: { persistSession: false } },
+      );
+    }
+    return this.#anonClient;
+  }
 
   #client(requestClient) {
     if (requestClient) return requestClient;
@@ -368,6 +386,17 @@ class SupabaseStore {
       .select("*")
       .eq("published", true)
       .neq("user_id", ownerId)
+      .order("updated_at", { ascending: false })
+      .limit(100);
+    if (error) throwDatabaseError(error);
+    return (data ?? []).map(toMatchProfile);
+  }
+
+  async listPublicMatchProfiles() {
+    const { data, error } = await this.#anon()
+      .from("match_profiles")
+      .select("*")
+      .eq("published", true)
       .order("updated_at", { ascending: false })
       .limit(100);
     if (error) throwDatabaseError(error);

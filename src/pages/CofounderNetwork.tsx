@@ -39,6 +39,7 @@ import {
 import { useAuth } from "../context/AuthProvider";
 import {
   discoverMatchProfiles,
+  discoverPublicMatchProfiles,
   getMatchProfile,
   requestMatchIntro,
   saveMatchProfile,
@@ -71,6 +72,7 @@ type Candidate = {
   evidence: string[];
   availability: string;
   skills: Record<string, number>;
+  avatarUrl?: string | null;
   live?: boolean;
 };
 
@@ -123,7 +125,131 @@ function readStoredMatchProfile(fallback: MatchProfile): MatchProfile {
   }
 }
 
-function candidateFromProfile(profile: MatchProfile): Candidate {
+const SKILL_CATEGORY_KEYWORDS: Record<string, string[]> = {
+  Product: ["product", "design", "ux", "roadmap", "delivery", "prototype"],
+  Technical: [
+    "technical",
+    "engineer",
+    "architecture",
+    "software",
+    "data",
+    "code",
+    "dev",
+    "ml",
+    "ai",
+  ],
+  Sales: ["sales", "partnership", "enterprise", "revenue", "gtm", "pricing"],
+  Operations: [
+    "operations",
+    "ops",
+    "finance",
+    "hiring",
+    "process",
+    "compliance",
+  ],
+  Market: [
+    "market",
+    "customer",
+    "growth",
+    "community",
+    "brand",
+    "discovery",
+    "research",
+  ],
+};
+
+function skillsOverlap(a: string, b: string): boolean {
+  const left = a.trim().toLowerCase();
+  const right = b.trim().toLowerCase();
+  if (
+    left.length > 2 &&
+    right.length > 2 &&
+    (left.includes(right) || right.includes(left))
+  ) {
+    return true;
+  }
+  const tokens = (value: string) =>
+    value.split(/[^a-z0-9+]+/).filter((token) => token.length >= 4);
+  const rightTokens = new Set(tokens(right));
+  return tokens(left).some((token) => rightTokens.has(token));
+}
+
+function coverage(needs: string[], offers: string[]): number | null {
+  if (!needs.length) return null;
+  const covered = needs.filter((need) =>
+    offers.some((offer) => skillsOverlap(need, offer)),
+  );
+  return covered.length / needs.length;
+}
+
+function normalizeTrack(
+  value: FounderTrack | null | undefined,
+): FounderTrack {
+  return value === "Technical" || value === "Business" || value === "Hybrid"
+    ? value
+    : "Hybrid";
+}
+
+function trackFit(
+  a: FounderTrack | null | undefined,
+  b: FounderTrack | null | undefined,
+): number {
+  if (!a || !b) return 0.7;
+  if (a === b) return 0.35;
+  if (a === "Hybrid" || b === "Hybrid") return 0.7;
+  return 1;
+}
+
+function computeMatchScore(
+  candidate: MatchProfile,
+  viewer: MatchProfile,
+): number {
+  const needsCoverage = coverage(viewer.seekingSkills, candidate.skills);
+  const reverseCoverage = coverage(candidate.seekingSkills, viewer.skills);
+  const track = trackFit(viewer.track, candidate.track);
+  const hours =
+    1 - Math.min(Math.abs(viewer.weeklyHours - candidate.weeklyHours), 30) / 30;
+  const mode =
+    viewer.workMode === candidate.workMode ||
+    viewer.workMode === "Flexible" ||
+    candidate.workMode === "Flexible"
+      ? 1
+      : 0.6;
+
+  const parts: Array<[number | null, number]> = [
+    [needsCoverage, 0.45],
+    [reverseCoverage, 0.25],
+    [track, 0.15],
+    [hours, 0.1],
+    [mode, 0.05],
+  ];
+  const available = parts.filter(
+    (part): part is [number, number] => part[0] !== null,
+  );
+  const weightSum = available.reduce((sum, [, weight]) => sum + weight, 0);
+  const weighted = available.reduce(
+    (sum, [value, weight]) => sum + value * weight,
+    0,
+  );
+  return Math.round((weighted / weightSum) * 100);
+}
+
+function skillCategoryScores(skills: string[]): Record<string, number> {
+  const normalized = skills.map((skill) => skill.trim().toLowerCase());
+  return Object.fromEntries(
+    Object.entries(SKILL_CATEGORY_KEYWORDS).map(([category, keywords]) => {
+      const hits = keywords.filter((keyword) =>
+        normalized.some((skill) => skill.includes(keyword)),
+      ).length;
+      return [category, Math.min(45 + hits * 25, 95)];
+    }),
+  );
+}
+
+function candidateFromProfile(
+  profile: MatchProfile,
+  viewer: MatchProfile,
+): Candidate {
   const verified = [
     profile.identityVerified ? "Identity" : "",
     profile.phoneVerified ? "Phone" : "",
@@ -135,18 +261,12 @@ function candidateFromProfile(profile: MatchProfile): Candidate {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
-  const skillStrength = (label: string) =>
-    profile.skills.some((skill) =>
-      skill.toLowerCase().includes(label.toLowerCase()),
-    )
-      ? 88
-      : 58;
 
   return {
     id: profile.userId ?? crypto.randomUUID(),
     name,
     initials: initials || "FD",
-    track: profile.track,
+    track: normalizeTrack(profile.track),
     headline: profile.headline,
     bio: profile.bio,
     location: profile.location || "Location shared after consent",
@@ -154,20 +274,15 @@ function candidateFromProfile(profile: MatchProfile): Candidate {
     hours: profile.weeklyHours,
     stage: profile.stage,
     equity: profile.equityExpectation,
-    match: profile.track === "Technical" ? 91 : profile.track === "Hybrid" ? 87 : 84,
+    match: computeMatchScore(profile, viewer),
+    avatarUrl: profile.avatarUrl ?? null,
     verified,
     gives: profile.skills,
     needs: profile.seekingSkills,
     vision: profile.vision,
     evidence: [],
     availability: `${profile.weeklyHours} hours weekly · ${profile.workMode}`,
-    skills: {
-      Product: skillStrength("Product"),
-      Technical: skillStrength("Engineering"),
-      Sales: skillStrength("Sales"),
-      Operations: skillStrength("Operations"),
-      Market: skillStrength("Customer"),
-    },
+    skills: skillCategoryScores(profile.skills),
     live: true,
   };
 }
@@ -330,7 +445,53 @@ function VerificationBadges({ items }: { items: string[] }) {
   );
 }
 
-function MatchScore({ value, compact = false }: { value: number; compact?: boolean }) {
+function CandidateAvatar({
+  candidate,
+  kind = "candidate",
+}: {
+  candidate: Candidate;
+  kind?: "candidate" | "conversation";
+}) {
+  const [broken, setBroken] = useState(false);
+  const className = `${kind}-avatar is-${candidate.track.toLowerCase()}`;
+  if (candidate.avatarUrl && !broken) {
+    return (
+      <img
+        className={className}
+        src={candidate.avatarUrl}
+        alt=""
+        style={{ objectFit: "cover" }}
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return <span className={className}>{candidate.initials}</span>;
+}
+
+function MatchScore({
+  value,
+  compact = false,
+  locked = false,
+  onUnlock,
+}: {
+  value: number;
+  compact?: boolean;
+  locked?: boolean;
+  onUnlock?: () => void;
+}) {
+  if (locked) {
+    return (
+      <button
+        type="button"
+        className={`cofounder-match-score is-strong ${compact ? "is-compact" : ""}`}
+        onClick={onUnlock}
+        title="Sign in to see your personal match score"
+      >
+        <strong>?</strong>
+        <span>Match</span>
+      </button>
+    );
+  }
   return (
     <div className={`cofounder-match-score ${scoreTone(value)} ${compact ? "is-compact" : ""}`}>
       <strong>{value}%</strong>
@@ -346,12 +507,17 @@ function SkillComparison({
   candidate: Candidate;
   profile: FounderProfile;
 }) {
+  const assessmentScores = profile.assessmentComplete
+    ? profile.scores
+    : undefined;
   const founderScores: Record<string, number> = {
-    Product: profile.assessmentComplete ? profile.scores.executionVelocity : 72,
-    Technical: profile.industry.toLowerCase().includes("tech") ? 82 : 45,
-    Sales: profile.assessmentComplete ? profile.scores.networkLeverage : 68,
-    Operations: profile.assessmentComplete ? profile.scores.resourcefulness : 78,
-    Market: profile.assessmentComplete ? profile.scores.localMarketFluency : 75,
+    Product: assessmentScores?.executionVelocity ?? 72,
+    Technical: (profile.industry ?? "").toLowerCase().includes("tech")
+      ? 82
+      : 45,
+    Sales: assessmentScores?.networkLeverage ?? 68,
+    Operations: assessmentScores?.resourcefulness ?? 78,
+    Market: assessmentScores?.localMarketFluency ?? 75,
   };
 
   return (
@@ -592,16 +758,18 @@ function CandidateCard({
   onProfile,
   onIntro,
   compact = false,
+  guestLogin,
 }: {
   candidate: Candidate;
   onProfile: () => void;
   onIntro: () => void;
   compact?: boolean;
+  guestLogin?: () => void;
 }) {
   return (
     <article className={`candidate-card ${compact ? "is-compact" : ""}`}>
       <div className="candidate-card-head">
-        <span className={`candidate-avatar is-${candidate.track.toLowerCase()}`}>{candidate.initials}</span>
+        <CandidateAvatar candidate={candidate} />
         <div>
           <span className={`founder-track-tag is-${candidate.track.toLowerCase()}`}>{candidate.track}</span>
           <h3>
@@ -612,7 +780,7 @@ function CandidateCard({
           </h3>
           <p><MapPin size={12} /> {candidate.location} · {candidate.workMode}</p>
         </div>
-        <MatchScore value={candidate.match} compact={compact} />
+        <MatchScore value={candidate.match} compact={compact} locked={Boolean(guestLogin)} onUnlock={guestLogin} />
       </div>
       <VerificationBadges items={candidate.verified} />
       <h4>{candidate.headline}</h4>
@@ -637,12 +805,17 @@ function CandidateCard({
 
 export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
   const auth = useAuth();
+  const isGuest = !auth.user;
   const location = useLocation();
   const navigate = useNavigate();
+  const goLogin = () => navigate("/login");
   const params = new URLSearchParams(location.search);
   const requestedView = params.get("view");
-  const view: NetworkView =
-    requestedView === "profile" || requestedView === "messages" ? requestedView : "discover";
+  const view: NetworkView = isGuest
+    ? "discover"
+    : requestedView === "profile" || requestedView === "messages"
+      ? requestedView
+      : "discover";
   const requestedCandidate = params.get("person") ?? "amara";
   const initialMatchProfile = useMemo(
     () =>
@@ -662,7 +835,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
   );
   const [matchProfile, setMatchProfile] =
     useState<MatchProfile>(initialMatchProfile);
-  const [networkCandidates, setNetworkCandidates] = useState<Candidate[]>([]);
+  const [networkProfiles, setNetworkProfiles] = useState<MatchProfile[]>([]);
   const [roleFilter, setRoleFilter] = useState("All");
   const [hoursFilter, setHoursFilter] = useState("Any");
   const [stageFilter, setStageFilter] = useState("Any");
@@ -676,8 +849,15 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
   const [draft, setDraft] = useState("");
   const [selectedDay, setSelectedDay] = useState("Tue 29");
   const [selectedTime, setSelectedTime] = useState("");
+  const networkCandidates = useMemo(
+    () =>
+      networkProfiles.map((profile) =>
+        candidateFromProfile(profile, matchProfile),
+      ),
+    [networkProfiles, matchProfile],
+  );
   const allCandidates = useMemo(
-    () => [...networkCandidates, ...candidates],
+    () => (networkCandidates.length ? networkCandidates : candidates),
     [networkCandidates],
   );
   const selectedCandidate =
@@ -685,13 +865,19 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
     allCandidates[0];
 
   useEffect(() => {
-    if (!auth.user || auth.user.isLocalReview) return;
+    if (auth.user?.isLocalReview) return;
     let active = true;
 
-    void Promise.all([getMatchProfile(), discoverMatchProfiles()])
+    const load = auth.user
+      ? Promise.all([getMatchProfile(), discoverMatchProfiles()])
+      : discoverPublicMatchProfiles().then(
+          (discovery) => [null, discovery] as const,
+        );
+
+    void load
       .then(([own, discovery]) => {
         if (!active) return;
-        if (own.profile?.track) {
+        if (own?.profile?.track) {
           setMatchProfile(own.profile);
           setSetupComplete(Boolean(own.profile.vision || own.profile.skills.length));
           localStorage.setItem(
@@ -699,12 +885,14 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
             JSON.stringify(own.profile),
           );
         }
-        setNetworkCandidates(discovery.profiles.map(candidateFromProfile));
+        setNetworkProfiles(discovery.profiles);
       })
       .catch(() => {
         if (!active) return;
         setNotice(
-          "Cloud matching is waiting for the Supabase schema; this review stays local.",
+          auth.user
+            ? "Cloud matching is waiting for the Supabase schema; this review stays local."
+            : "Live profiles are unavailable right now — showing sample founders.",
         );
       });
 
@@ -747,9 +935,13 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
   const messages = messageMap[activeConversation] ?? [];
 
   const go = (nextView: NetworkView, candidateId?: string) => {
+    if (isGuest && nextView !== "discover") {
+      goLogin();
+      return;
+    }
     const query = new URLSearchParams({ view: nextView });
     if (candidateId) query.set("person", candidateId);
-    navigate(`/app/matches?${query.toString()}`);
+    navigate(`${isGuest ? "/network" : "/app/matches"}?${query.toString()}`);
   };
 
   const nextCard = () => {
@@ -757,6 +949,10 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
   };
 
   const requestIntro = async (candidate: Candidate) => {
+    if (isGuest) {
+      goLogin();
+      return;
+    }
     if (candidate.live) {
       try {
         await requestMatchIntro(
@@ -961,13 +1157,14 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
                     candidate={activeCard}
                     onProfile={() => go("profile", activeCard.id)}
                     onIntro={() => requestIntro(activeCard)}
+                    guestLogin={isGuest ? goLogin : undefined}
                   />
                   <div className="swipe-actions" aria-label="Profile actions">
                     <button type="button" className="is-pass" onClick={nextCard} aria-label="Pass on profile"><X size={20} /><span>Pass</span></button>
                     <button
                       type="button"
                       className={`is-save ${saved.includes(activeCard.id) ? "is-active" : ""}`}
-                      onClick={() => setSaved((items) => items.includes(activeCard.id) ? items.filter((id) => id !== activeCard.id) : [...items, activeCard.id])}
+                      onClick={() => { if (isGuest) { goLogin(); return; } setSaved((items) => items.includes(activeCard.id) ? items.filter((id) => id !== activeCard.id) : [...items, activeCard.id]); }}
                       aria-label="Save profile"
                     >
                       <Star size={20} /><span>{saved.includes(activeCard.id) ? "Saved" : "Save"}</span>
@@ -1002,6 +1199,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
                     compact
                     onProfile={() => go("profile", candidate.id)}
                     onIntro={() => requestIntro(candidate)}
+                    guestLogin={isGuest ? goLogin : undefined}
                   />
                 ))}
               </div>
@@ -1015,7 +1213,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
           <button className="back-to-discovery" type="button" onClick={() => go("discover")}><ArrowLeft size={15} /> Back to discovery</button>
           <div className="profile-identity-card">
             <div className="profile-identity-main">
-              <span className={`candidate-avatar is-${selectedCandidate.track.toLowerCase()}`}>{selectedCandidate.initials}</span>
+              <CandidateAvatar candidate={selectedCandidate} />
               <div>
                 <span className={`founder-track-tag is-${selectedCandidate.track.toLowerCase()}`}>{selectedCandidate.track} founder</span>
                 <h2>
@@ -1029,7 +1227,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
               </div>
             </div>
             <div className="profile-identity-score">
-              <MatchScore value={selectedCandidate.match} />
+              <MatchScore value={selectedCandidate.match} locked={isGuest} onUnlock={goLogin} />
               <button className="button button-primary" type="button" onClick={() => requestIntro(selectedCandidate)}><Handshake size={15} /> Request intro</button>
             </div>
             <VerificationBadges items={selectedCandidate.verified} />
@@ -1117,7 +1315,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
                       navigate(`/app/matches?view=messages&person=${conversation.id}`, { replace: true });
                     }}
                   >
-                    <span className={`conversation-avatar is-${candidate.track.toLowerCase()}`}>{candidate.initials}</span>
+                    <CandidateAvatar candidate={candidate} kind="conversation" />
                     <div><strong>{candidate.name}<BadgeCheck size={11} /></strong><small>{conversation.preview}</small></div>
                     <em>{conversation.time}</em>
                     {conversation.unread > 0 && <i>{conversation.unread}</i>}
@@ -1130,7 +1328,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
 
           <div className="chat-pane">
             <header className="chat-profile-pin">
-              <span className={`conversation-avatar is-${chatCandidate.track.toLowerCase()}`}>{chatCandidate.initials}</span>
+              <CandidateAvatar candidate={chatCandidate} kind="conversation" />
               <div><strong>{chatCandidate.name}<BadgeCheck size={12} /></strong><small>{chatCandidate.match}% match · {chatCandidate.track} · {chatCandidate.location}</small></div>
               <button type="button" onClick={() => go("profile", chatCandidate.id)}>View profile</button>
             </header>
@@ -1144,7 +1342,7 @@ export function CofounderNetwork({ profile }: { profile: FounderProfile }) {
               <div className="chat-day"><span>Today</span></div>
               {messages.map((message, index) => (
                 <div className={`chat-message is-${message.from}`} key={`${message.time}-${index}`}>
-                  {message.from === "them" && <span className={`conversation-avatar is-${chatCandidate.track.toLowerCase()}`}>{chatCandidate.initials}</span>}
+                  {message.from === "them" && <CandidateAvatar candidate={chatCandidate} kind="conversation" />}
                   <div><p>{message.text}</p><small>{message.time}</small></div>
                 </div>
               ))}

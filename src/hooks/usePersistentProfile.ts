@@ -48,7 +48,9 @@ export function usePersistentProfile(
     void getFounderProfile()
       .then(({ profile: remoteProfile }) => {
         if (!active) return;
-        if (remoteProfile) setProfileState(remoteProfile);
+        if (remoteProfile && Object.keys(remoteProfile).length > 0) {
+          setProfileState((current) => ({ ...current, ...remoteProfile }));
+        }
         setSyncState("synced");
       })
       .catch(() => {

@@ -179,6 +179,10 @@ export default function App() {
         <Route path="/impact" element={<PublicPage><Impact /></PublicPage>} />
         <Route path="/foundry" element={<PublicPage><FoundryVision /></PublicPage>} />
         <Route path="/matching" element={<PublicPage><Matching /></PublicPage>} />
+        <Route
+          path="/network"
+          element={<PublicPage><CofounderNetwork profile={profile} /></PublicPage>}
+        />
         <Route path="/agencies" element={<PublicPage><Agencies /></PublicPage>} />
         <Route path="/judges" element={<PublicPage><Judges /></PublicPage>} />
         <Route path="/method" element={<PublicPage><Method /></PublicPage>} />

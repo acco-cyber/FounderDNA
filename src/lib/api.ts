@@ -136,6 +136,7 @@ export interface MatchProfile {
   skills: string[];
   seekingSkills: string[];
   vision: string;
+  avatarUrl?: string | null;
   published: boolean;
   identityVerified?: boolean;
   phoneVerified?: boolean;
@@ -198,6 +199,9 @@ export const saveFounderProfile = (profile: FounderProfile) =>
 
 export const getMatchProfile = () =>
   request<{ profile: MatchProfile | null }>("/api/matching/profile");
+
+export const discoverPublicMatchProfiles = () =>
+  request<{ profiles: MatchProfile[] }>("/api/matching/discover/public");
 
 export const saveMatchProfile = (profile: MatchProfile) =>
   request<{ profile: MatchProfile }>("/api/matching/profile", {
