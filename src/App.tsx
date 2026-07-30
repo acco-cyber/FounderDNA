@@ -245,6 +245,3 @@ export default function App() {
     </>
   );
 }
-
-
-js. Module use dark mode
